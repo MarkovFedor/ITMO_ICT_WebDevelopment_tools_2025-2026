@@ -1,9 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from typing_extensions import TypedDict
 from typing import List, Any
-from models import Warrior, Profession
+from models import Warrior, Profession,WarriorDefault, ProfessionDefault,WarriorProfessions
+from connection import init_db, get_session
+from sqlmodel import select
 app = FastAPI()
 
+@app.on_event("startup")
+def on_startup():
+    init_db()
 temp_bd = {
     "professions": 
     [
@@ -54,64 +59,67 @@ temp_bd = {
 
 
 @app.get("/warriors_list")
-def warriors_list() -> List[Warrior]:
-    warrior_list:List[Warrior] = []
-    for warrior in temp_bd['warriors']:
-        warrior_list.append(Warrior(**warrior))
-    return warrior_list
+def warriors_list(session=Depends(get_session)) -> List[Warrior]:
+    return session.exec(select(Warrior)).all()
 
 
-@app.get("/warrior/{warrior_id}")
-def warriors_get(warrior_id: int) -> List[Warrior]:
-    warrior_list:List[Warrior] = []
-    for warrior in temp_bd['warriors']:
-        if warrior.get('id') == warrior_id:
-            warrior_list.append(Warrior(**warrior))
-    return warrior_list
+@app.get("/warrior/{warrior_id}", response_model=WarriorProfessions)
+def warriors_get(warrior_id: int, session=Depends(get_session)) -> Warrior:
+    warrior = session.get(Warrior, warrior_id)
+    return warrior
 
 
 @app.post("/warrior")
-def warriors_create(warrior: Warrior) -> TypedDict('Response', {"status": int, "data": Warrior}):
+def warriors_create(warrior: WarriorDefault, session=Depends(get_session)) -> TypedDict('Response', {"status": int,"data": Warrior}):
     #Пока без проверки на существование профессии
-    warrior_to_append = warrior.model_dump()
-    temp_bd["warriors"].append(warrior_to_append)
+    #warrior_to_append = warrior.model_dump()
+    #temp_bd["warriors"].append(warrior_to_append)
+    warrior = Warrior.model_validate(warrior)
+    session.add(warrior)
+    session.commit()
+    session.refresh(warrior)
     return {"status": 200, "data": warrior}
 
-
 @app.delete("/warrior/delete{warrior_id}")
-def warrior_delete(warrior_id: int):
-    for warrior in temp_bd['warriors']:
-        if warrior['id'] == warrior_id:
-            temp_bd["warriors"].remove(warrior)
-            break
-    return {"status": 201, "message": "deleted"}
+def warrior_delete(warrior_id: int, session=Depends(get_session)):
+    warrior = session.get(Warrior, warrior_id)
+    if not warrior:
+        raise HTTPException(status_code=404, detail="Warrior not found")
+    session.delete(warrior)
+    session.commit()
+    return {"ok": True}
 
 
-@app.put("/warrior/{warrior_id}")
-def warrior_update(warrior_id: int, warrior: Warrior) -> List[Warrior]:
-    warriors:List[Warrior] = []
-    for war in temp_bd['warriors']:
-        if war['id'] == warrior_id:
-            temp_bd['warriors'].remove(war)
-            temp_bd['warriors'].append(warrior.model_dump())
-        warriors.append(Warrior(**war))
-    #Понимаю, много костылей, но работает
-    return warriors
+@app.patch("/warrior{warrior_id}")
+def warrior_update(warrior_id: int, warrior: WarriorDefault, session=Depends(get_session)) -> WarriorDefault:
+    db_warrior = session.get(Warrior, warrior_id)
+    if not db_warrior:
+        raise HTTPException(status_code=404, detail="Warrior not found")
+    warrior_data = warrior.model_dump(exclude_unset=True)
+    for key, value in warrior_data.items():
+        setattr(db_warrior, key, value)
+    session.add(db_warrior)
+    session.commit()
+    session.refresh(db_warrior)
+    return db_warrior
 
-@app.get("/professions")
-def get_professions() -> List[Profession]:
-    professions:List[Profession] = [Profession(**prof) for prof in temp_bd['professions']]
-    return professions
+@app.get("/professions_list")
+def professions_list(session=Depends(get_session)) -> List[Profession]:
+    return session.exec(select(Profession)).all()
+
 
 @app.get("/profession/{profession_id}")
-def get_profession(profession_id: int) -> List[Profession]:
-    profession = [Profession(**prof) for prof in temp_bd['professions'] if prof['id'] == profession_id]
-    return profession
+def profession_get(profession_id: int, session=Depends(get_session)) -> Profession:
+    return session.get(Profession, profession_id)
+
 
 @app.post("/profession")
-def create_profession(profession: Profession) -> TypedDict('Response', {"status": int, "data": Profession}):
-    temp_bd['professions'].append(profession.model_dump())
-    return {"status": 200, "data": profession}
+def profession_create(prof: ProfessionDefault, session=Depends(get_session)) -> TypedDict('Response', {"status": int,"data": Profession}):
+    prof = Profession.model_validate(prof)
+    session.add(prof)
+    session.commit()
+    session.refresh(prof)
+    return {"status": 200, "data": prof}
 
 @app.put("/professioin/{profession_id}")
 def profession_update(profession_id: int, profession: Warrior) -> List[Warrior]:
@@ -125,7 +133,7 @@ def profession_update(profession_id: int, profession: Warrior) -> List[Warrior]:
     return warriors
 
 @app.delete("/profession/delete/{profession_id}")
-def warrior_delete(profession_id: int):
+def profession_delete(profession_id: int):
     for profession in temp_bd['warriors']:
         if profession['id'] == profession_id:
             temp_bd["warriors"].remove(profession)
