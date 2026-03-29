@@ -23,5 +23,5 @@ class Warrior(BaseModel):
     race: RaceType
     name: str
     level: int
-    profession: Profession
+    profession_id: int
     skills: Optional[List[Skill]] = []
