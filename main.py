@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from typing_extensions import TypedDict
 from typing import List, Any
-from models import Warrior, Profession,WarriorDefault, ProfessionDefault,WarriorProfessions
+from models import Warrior, Profession,WarriorDefault, ProfessionDefault,WarriorProfessions, Skill, SkillDefault
 from connection import init_db, get_session
 from sqlmodel import select
 app = FastAPI()
@@ -139,3 +139,44 @@ def profession_delete(profession_id: int):
             temp_bd["warriors"].remove(profession)
             break
     return {"status": 201, "message": "deleted"}
+
+@app.get("/skills_list")
+def skills_list(session=Depends(get_session)) -> List[Skill]:
+    return session.exec(select(Skill)).all()
+
+@app.get("/skill/{skill_id}")
+def get_skill(skill_id:int, session=Depends(get_session)) -> List[Skill]:
+    return session.get(Skill, skill_id)
+
+@app.post("/skill")
+def skill_create(skill: SkillDefault, session=Depends(get_session)) -> TypedDict('Response', {"status": int,"data": Skill}):
+    #Пока без проверки на существование профессии
+    #warrior_to_append = warrior.model_dump()
+    #temp_bd["warriors"].append(warrior_to_append)
+    skill = Skill.model_validate(skill)
+    session.add(skill)
+    session.commit()
+    session.refresh(skill)
+    return {"status": 200, "data": skill}
+
+@app.delete("/warrior/delete{skill_id}")
+def skill_delete(skill_id: int, session=Depends(get_session)):
+    skill = session.get(Skill, skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    session.delete(skill)
+    session.commit()
+    return {"ok": True}
+
+@app.patch("/skill{skill_id}")
+def skill_update(skill_id: int, skill: SkillDefault, session=Depends(get_session)) -> SkillDefault:
+    db_skill = session.get(Skill, skill_id)
+    if not db_skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    skill_data = skill.model_dump(exclude_unset=True)
+    for key, value in skill_data.items():
+        setattr(db_skill, key, value)
+    session.add(db_skill)
+    session.commit()
+    session.refresh(db_skill)
+    return db_skill
