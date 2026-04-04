@@ -1,10 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException
 from typing_extensions import TypedDict
-from typing import List, Any
-from models import Warrior, Profession,WarriorDefault, ProfessionDefault,WarriorProfessions, Skill, SkillDefault
+from typing import List, Any, Union
+from models import Warrior, Profession,WarriorDefault, ProfessionDefault,WarriorProfessions, Skill, SkillDefault, SkillWarriorLink, WarriorCreate, WarriorSkillsRead
 from connection import init_db, get_session
 from sqlmodel import select
+import logging
+import coloredlogs
 app = FastAPI()
+
+logger = logging.getLogger('uvicorn.info')
 
 @app.on_event("startup")
 def on_startup():
@@ -63,21 +67,26 @@ def warriors_list(session=Depends(get_session)) -> List[Warrior]:
     return session.exec(select(Warrior)).all()
 
 
-@app.get("/warrior/{warrior_id}", response_model=WarriorProfessions)
+@app.get("/warrior/{warrior_id}", response_model=WarriorSkillsRead)
 def warriors_get(warrior_id: int, session=Depends(get_session)) -> Warrior:
     warrior = session.get(Warrior, warrior_id)
     return warrior
 
 
-@app.post("/warrior")
-def warriors_create(warrior: WarriorDefault, session=Depends(get_session)) -> TypedDict('Response', {"status": int,"data": Warrior}):
+@app.post("/warrior", response_model=Warrior)
+def warriors_create(warrior: WarriorCreate, session=Depends(get_session)) -> TypedDict('Response', {"status": int,"data": Warrior}):
     #Пока без проверки на существование профессии
     #warrior_to_append = warrior.model_dump()
     #temp_bd["warriors"].append(warrior_to_append)
-    warrior = Warrior.model_validate(warrior)
-    session.add(warrior)
+    logger.info(warrior)
+    warrior_data = warrior.model_dump(exclude={"skills_ids"})
+    warrior_db = Warrior.model_validate(warrior_data)
+    if warrior.skills_ids:
+        skills = session.exec(select(Skill).where(Skill.id.in_(warrior.skills_ids))).all()
+        warrior_db.skills = skills
+    session.add(warrior_db)
     session.commit()
-    session.refresh(warrior)
+    session.refresh(warrior_db)
     return {"status": 200, "data": warrior}
 
 @app.delete("/warrior/delete{warrior_id}")
