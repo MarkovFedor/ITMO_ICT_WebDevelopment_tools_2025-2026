@@ -4,6 +4,9 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from models import *
 from alembic import context
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -11,6 +14,10 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
+print(os.getenv('DB_ADMIN'))
+config.set_section_option('alembic', 'DB_ADMIN', str(os.getenv('DB_ADMIN')))
+
+print(config.get_section_option('alembic', 'DB_ADMIN'))
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

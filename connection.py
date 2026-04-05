@@ -1,6 +1,9 @@
+import os
+from dotenv import load_dotenv
 from sqlmodel import SQLModel, Session, create_engine
 
-db_url = 'postgresql://postgres:mysecretpassword@localhost:5432/postgres'
+db_url = str(os.getenv('DB_ADMIN'))
+
 engine = create_engine(db_url, echo=True)
 
 
