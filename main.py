@@ -5,7 +5,7 @@ from models import Warrior, Profession,WarriorDefault, ProfessionDefault,Warrior
 from connection import init_db, get_session
 from sqlmodel import select
 import logging
-import coloredlogs
+
 app = FastAPI()
 
 logger = logging.getLogger('uvicorn.info')
