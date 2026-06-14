@@ -47,6 +47,8 @@ def multi_threading(max, chunks):
 def threads_benchmark(chunks, max):
     print('Multithread result: ')
     multi_threading(max, chunks)
+
+def single_thread_benchmark(max):
     now = time.perf_counter()
     print('Single thread result')
     result = sum(list(range(1,max+1)))
