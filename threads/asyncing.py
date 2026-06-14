@@ -20,8 +20,7 @@ def cut(number, chunks):
 
     return ranges
 
-async def count():
-    number = 10000000
+async def count(number):
     chunks = 10
     tasks = []
     ranges = cut(number, chunks)
@@ -34,4 +33,6 @@ async def count():
 
     print(f'{total} : {after - now}')
 
-asyncio.run(count())
+def async_benchmark(number):
+    print("Async result")
+    asyncio.run(count(number))

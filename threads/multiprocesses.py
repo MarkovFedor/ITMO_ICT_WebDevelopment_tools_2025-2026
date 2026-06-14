@@ -33,9 +33,10 @@ def multiprocess_counting(number, optimal):
     return sum(partial_sums)
 
 
-num = 10000000
-now = time.perf_counter()
-result = multiprocess_counting(num, optimal)
-after = time.perf_counter()
-print(f'{after - now} : {result}')
-    
+
+def multiprocess_benchmark(num):
+    print('Multiprocess counting result')
+    now = time.perf_counter()
+    result = multiprocess_counting(num, optimal)
+    after = time.perf_counter()
+    print(f'{result} : {after - now}')

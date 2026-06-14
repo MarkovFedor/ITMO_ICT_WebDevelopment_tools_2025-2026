@@ -1,9 +1,9 @@
 import threading
 import time
 
-def sync_counting():
+def sync_counting(number):
     result = 0
-    for i in range(1, 10000000000000):
+    for i in range(1, number):
         result+=i
     print(result)
 
@@ -43,13 +43,12 @@ def multi_threading(max, chunks):
     after = time.perf_counter()
     print(f'{sum(total)} : {after - now}')
 
-max = 10000000
-chunks = 10
 
-multi_threading(max, chunks)
-
-now = time.perf_counter()
-result = sum(list(range(1,max+1)))
-after = time.perf_counter()
-print(f'{result}: {after-now:.8f}')
-
+def threads_benchmark(chunks, max):
+    print('Multithread result: ')
+    multi_threading(max, chunks)
+    now = time.perf_counter()
+    print('Single thread result')
+    result = sum(list(range(1,max+1)))
+    after = time.perf_counter()
+    print(f'{result}: {after-now:.8f}')
