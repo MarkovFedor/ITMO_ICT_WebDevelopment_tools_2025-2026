@@ -1,0 +1,5 @@
+fastapi
+dotenv
+sqlmodel
+uvicorn
+psycopg2-binary
