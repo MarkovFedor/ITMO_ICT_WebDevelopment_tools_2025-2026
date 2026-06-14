@@ -5,14 +5,18 @@ import psycopg2
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 DB_CONFIG = {
-    'dbname': 'parsing_lab',
-    'user': 'postgres',
-    'password': 'pass',
-    'host': 'localhost',
-    'port': 5432
+    'dbname': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASS'),
+    'host': os.getenv('DB_HOST'),
+    'port': os.getenv('DB_PORT')
 }
+
 NUM_THREADS = 4
 
 def init_db():
@@ -39,7 +43,6 @@ def parse_and_save(url):
     except Exception as e:
         title = f'Error: {e}'
 
-    # Каждый поток открывает своё соединение
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
     cur.execute(
@@ -62,12 +65,8 @@ def worker(q):
 
 def main():
     init_db()
-    urls = [
-        'https://example.com',
-        'https://httpbin.org/get',
-        'https://www.python.org',
-        'https://www.google.com',
-    ] * 2  # 8 адресов
+    with open('/home/fedor/Learning/ITMO_ICT_WebDevelopment_tools_2025-2026/threads/parsing/list.txt', 'r', encoding='utf-8') as f:
+        urls = [line.strip() for line in f if line.strip()]
 
     start = time.time()
     q = queue.Queue()
