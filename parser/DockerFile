@@ -1,0 +1,22 @@
+FROM python:3.12-slim
+
+ENV DB_NAME=db
+ENV DB_USER=fedor
+ENV DB_PASS=postgrespass
+ENV DB_PORT=5432
+ENV DB_HOST=postgres.markovfd-itmo.ru
+
+WORKDIR /app
+
+# Ставим зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем все файлы приложения
+COPY main.py models.py parse_data.py ./
+
+# Порт
+EXPOSE 8000
+
+# Запускаем FastAPI
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
