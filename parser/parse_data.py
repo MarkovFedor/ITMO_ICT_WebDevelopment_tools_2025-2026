@@ -28,6 +28,7 @@ DB_CONFIG = {
 }
 
 def init_db():
+    print(DB_CONFIG)
     """Проверяем подключение и создаём уникальные индексы, если их нет."""
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
@@ -50,48 +51,45 @@ def fetch_page(url):
         print(f"Error fetching {url}: {e}")
         return None
 
-def parse_catalog(catalog):
-    """Парсит страницу каталога и возвращает список (название, [навыки])."""
-    html = fetch_page(catalog)
+def parse_catalog(catalog_url):
+    """Парсит главную страницу каталога и возвращает список (название, описание, [навыки])"""
+    html = fetch_page(catalog_url)
     if not html:
         return []
 
     soup = BeautifulSoup(html, 'html.parser')
     professions = []
 
-    cards = soup.select('div.catalog-item, div.prof-item, div.profession-card, li.catalog__item, section.catalog__item')
+    cards = soup.select('div.one_profession')
     if not cards:
-        cards = soup.select('[class*="catalog"] [class*="item"], [class*="prof"]')
-    if not cards:
-        print("ERROR: Could not find profession cards. Please check the HTML structure and update selectors.")
+        print("ERROR: No profession cards found. Check selector.")
         return []
 
     print(f"Found {len(cards)} profession cards.")
 
     for card in cards:
-        title_tag = card.find(['h2', 'h3', 'h4', 'a'], class_=re.compile(r'title|name', re.I))
-        if not title_tag:
-            title_tag = card.find(['h2', 'h3', 'h4', 'a'])
+        # Название
+        title_tag = card.find('h2')
         if not title_tag:
             continue
         title = title_tag.get_text(strip=True)
 
+        # Описание
+        desc_tag = card.select_one('div.bt.text p')
+        description = desc_tag.get_text(strip=True) if desc_tag else ''
+
+        # Навыки
         skills = []
-        skills_container = card.find(['ul', 'div'], class_=re.compile(r'skill|tag|competen', re.I))
-        if skills_container:
-            for li in skills_container.find_all('li'):
-                sk = li.get_text(strip=True)
-                if sk:
-                    skills.append(sk)
-        if not skills:
-            skill_tags = card.select('span.skill, span.tag, span.skill-tag, div.skill, div.tag')
-            for tag in skill_tags:
-                sk = tag.get_text(strip=True)
-                if sk:
-                    skills.append(sk)
+        prof_nav = card.find('div', class_='prof_nav')
+        if prof_nav:
+            skill_elems = prof_nav.select('div.help.nav')
+            for elem in skill_elems:
+                skill_name = elem.get('data-title')
+                if skill_name:
+                    skills.append(skill_name.strip())
 
-        professions.append((title, skills))
-
+        professions.append((title, description, skills))
+        print(skills)
     return professions
 
 def populate_data(catalog):
@@ -99,15 +97,15 @@ def populate_data(catalog):
     data = parse_catalog(catalog)
     if not data:
         print("No professions found. Check selectors.")
-        return
+        return 0
 
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
 
-    for title, skills in data:
+    for title, desc, skills in data:  # ← было (title, skills) → ошибка
         cur.execute(
-            "INSERT INTO profession (title, description) VALUES (%s, '') ON CONFLICT (title) DO NOTHING",
-            (title,)
+            "INSERT INTO profession (title, description) VALUES (%s, %s) ON CONFLICT (title) DO NOTHING",
+            (title, desc)
         )
         for sk in skills:
             cur.execute(
