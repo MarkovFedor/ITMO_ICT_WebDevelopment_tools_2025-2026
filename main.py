@@ -11,7 +11,8 @@ from models import (
     WarriorSkillsRead,
     User,
     UserCreate,
-    UserLogin
+    UserLogin,
+    UserPasswordUpdate
 )
 from connection import init_db, get_session
 from sqlmodel import select
@@ -278,3 +279,17 @@ def login(user: UserLogin, session = Depends(get_session)):
 def warriors_list(credentials: str = Depends(security), session = Depends(get_session),
                   current_user: User = Depends(get_current_user)):
     return session.exec(select(Warrior)).all()
+
+@app.post("/change_password")
+def change_password( user: UserPasswordUpdate, session = Depends(get_session)):
+    selected_user = session.exec(select(User).where(User.username == user.username)).first()
+    if not selected_user:
+        raise HTTPException(status_code = 400, detail = "User not found")
+    
+    if not verify_password(user.password, selected_user.password_hash):
+        raise HTTPException(status_code = 400, detail = "Wrong password")
+    
+    selected_user.password_hash = get_password_hash(user.new_password)
+    session.commit()
+
+    return {"message": "password changed successfully"}

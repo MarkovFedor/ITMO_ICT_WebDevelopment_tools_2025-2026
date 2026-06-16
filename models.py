@@ -80,3 +80,8 @@ class UserCreate(SQLModel):
 class UserLogin(SQLModel):
     username: str
     password: str
+
+class UserPasswordUpdate(SQLModel):
+    username: str
+    password: str
+    new_password: str
