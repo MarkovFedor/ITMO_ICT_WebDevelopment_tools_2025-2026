@@ -3,3 +3,10 @@ dotenv
 sqlmodel
 uvicorn
 psycopg2-binary
+requests
+beautifulsoup4
+alembic
+sqlalchemy
+python-jose
+passlib
+python-multipart

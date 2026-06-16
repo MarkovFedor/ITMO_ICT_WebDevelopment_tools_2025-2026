@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, APIRouter
 from typing import List
-
+from auth import get_current_user, authenticate_user, get_user, create_access_token, get_password_hash, verify_password
 from models import (
     Warrior,
     Profession,
@@ -9,12 +9,18 @@ from models import (
     SkillDefault,
     WarriorCreate,
     WarriorSkillsRead,
+    User,
+    UserCreate,
+    UserLogin
 )
 from connection import init_db, get_session
 from sqlmodel import select
+from fastapi.security import HTTPBearer
 
 app = FastAPI()
-
+protected = APIRouter(dependencies=[Depends(get_current_user)])
+security = HTTPBearer()  
+app.include_router(protected)
 @app.on_event("startup")
 def on_startup():
     init_db()
@@ -66,12 +72,10 @@ temp_bd = {
     ]
 }
 
-@app.get("/warriors_list", response_model=List[Warrior])
-def warriors_list(session=Depends(get_session)):
-    return session.exec(select(Warrior)).all()
 
 
-@app.get("/warrior/{warrior_id}", response_model=WarriorSkillsRead)
+
+@protected.get("/warrior/{warrior_id}", response_model=WarriorSkillsRead)
 def warriors_get(warrior_id: int, session=Depends(get_session)):
     warrior = session.get(Warrior, warrior_id)
     if not warrior:
@@ -79,7 +83,7 @@ def warriors_get(warrior_id: int, session=Depends(get_session)):
     return warrior
 
 
-@app.post("/warrior", response_model=Warrior, status_code=status.HTTP_201_CREATED)
+@protected.post("/warrior", response_model=Warrior, status_code=status.HTTP_201_CREATED)
 def warriors_create(warrior: WarriorCreate, session=Depends(get_session)):
     if warrior.profession_id is not None:
         profession = session.get(Profession, warrior.profession_id)
@@ -107,7 +111,7 @@ def warriors_create(warrior: WarriorCreate, session=Depends(get_session)):
     return warrior_db
 
 
-@app.delete("/warrior/{warrior_id}", status_code=status.HTTP_200_OK)
+@protected.delete("/warrior/{warrior_id}", status_code=status.HTTP_200_OK)
 def warrior_delete(warrior_id: int, session=Depends(get_session)):
     warrior = session.get(Warrior, warrior_id)
     if not warrior:
@@ -117,7 +121,7 @@ def warrior_delete(warrior_id: int, session=Depends(get_session)):
     return {"ok": True}
 
 
-@app.patch("/warrior/{warrior_id}", response_model=Warrior)
+@protected.patch("/warrior/{warrior_id}", response_model=Warrior)
 def warrior_update(
     warrior_id: int, warrior: WarriorCreate, session=Depends(get_session)
 ):
@@ -251,3 +255,26 @@ def skill_update(skill_id: int, skill_data: SkillDefault, session=Depends(get_se
     session.commit()
     session.refresh(db_skill)
     return db_skill
+
+@app.post("/register", status_code=status.HTTP_201_CREATED)
+def register(user: UserCreate, session = Depends(get_session)):
+    if session.exec(select(User).where(User.username == user.username)).first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+    hashed = get_password_hash(user.password)
+    new_user = User(username=user.username, password_hash=hashed)
+    session.add(new_user)
+    session.commit()
+    return {"message": "User created"}
+
+@app.post("/token")
+def login(user: UserLogin, session = Depends(get_session)):
+    db_user = authenticate_user(session, user.username, user.password)
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token(data={"sub": db_user.username})
+    return {"access_token": token, "token_type": "bearer"}
+
+@protected.get("/warriors_list")
+def warriors_list(credentials: str = Depends(security), session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
+    return session.exec(select(Warrior)).all()

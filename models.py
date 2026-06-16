@@ -67,3 +67,16 @@ class WarriorCreate(WarriorDefault):
 
 class WarriorSkillsRead(WarriorProfessions):
     skills: Optional[List[Skill]] = Field(default=None)
+
+class User(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True)
+    username: str = Field(unique=True, index=True)
+    password_hash: str
+
+class UserCreate(SQLModel):
+    username: str
+    password: str
+
+class UserLogin(SQLModel):
+    username: str
+    password: str
