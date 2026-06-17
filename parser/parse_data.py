@@ -1,8 +1,9 @@
+import asyncio
 import threading
 import queue
 import time
 import random
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
@@ -10,10 +11,10 @@ import psycopg2
 from psycopg2.extras import execute_values
 import re
 from urllib.parse import urljoin
+
 load_dotenv()
 
 NUM_THREADS = 4
-#WARRIORS_TO_GENERATE = 500
 DELAY_BETWEEN_PAGES = 0.3
 DELAY_BETWEEN_PROFESSIONS = 0.2
 
@@ -29,7 +30,6 @@ DB_CONFIG = {
 
 def init_db():
     print(DB_CONFIG)
-    """Проверяем подключение и создаём уникальные индексы, если их нет."""
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
     cur.execute("SELECT 1")
@@ -40,20 +40,21 @@ def init_db():
     conn.close()
     print("DB connection OK. Unique indexes ensured.")
 
-def fetch_page(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+async def fetch_page(session: aiohttp.ClientSession, url: str):
     try:
-        resp = requests.get(url, headers=headers, timeout=20)
-        resp.raise_for_status()
-        resp.encoding = resp.apparent_encoding or 'utf-8'
-        return resp.text
+        async with session.get(url, timeout=20) as resp:
+            if resp.status == 200:
+                return await resp.text()
+            else:
+                print(f"Error fetching {url}: status {resp.status}")
+                return None
     except Exception as e:
         print(f"Error fetching {url}: {e}")
         return None
 
-def parse_catalog(catalog_url):
-    """Парсит главную страницу каталога и возвращает список (название, описание, [навыки])"""
-    html = fetch_page(catalog_url)
+async def parse_catalog(catalog_url):
+    async with aiohttp.ClientSession() as session:
+        html = await fetch_page(session, catalog_url)
     if not html:
         return []
 
@@ -68,55 +69,51 @@ def parse_catalog(catalog_url):
     print(f"Found {len(cards)} profession cards.")
 
     for card in cards:
-        # Название
         title_tag = card.find('h2')
         if not title_tag:
             continue
         title = title_tag.get_text(strip=True)
 
-        # Описание
         desc_tag = card.select_one('div.bt.text p')
         description = desc_tag.get_text(strip=True) if desc_tag else ''
 
-        # Навыки
         skills = []
         prof_nav = card.find('div', class_='prof_nav')
         if prof_nav:
-            skill_elems = prof_nav.select('div.help.nav')
-            for elem in skill_elems:
+            for elem in prof_nav.select('div.help.nav'):
                 skill_name = elem.get('data-title')
                 if skill_name:
                     skills.append(skill_name.strip())
 
         professions.append((title, description, skills))
-        print(skills)
     return professions
 
-def populate_data(catalog):
+async def populate_data(catalog):
     print("=== Parsing catalog page ===")
-    data = parse_catalog(catalog)
+    data = await parse_catalog(catalog)
     if not data:
         print("No professions found. Check selectors.")
         return 0
 
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-
-    for title, desc, skills in data:  # ← было (title, skills) → ошибка
-        cur.execute(
-            "INSERT INTO profession (title, description) VALUES (%s, %s) ON CONFLICT (title) DO NOTHING",
-            (title, desc)
-        )
-        for sk in skills:
+    loop = asyncio.get_running_loop()
+    def _insert():
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        for title, desc, skills in data:
             cur.execute(
-                "INSERT INTO skill (name, description) VALUES (%s, '') ON CONFLICT (name) DO NOTHING",
-                (sk,)
+                "INSERT INTO profession (title, description) VALUES (%s, %s) ON CONFLICT (title) DO NOTHING",
+                (title, desc)
             )
-
-    conn.commit()
-    cur.close()
-    conn.close()
-    print(f"Saved {len(data)} professions and their skills.")
+            for sk in skills:
+                cur.execute(
+                    "INSERT INTO skill (name, description) VALUES (%s, '') ON CONFLICT (name) DO NOTHING",
+                    (sk,)
+                )
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"Saved {len(data)} professions and their skills.")
+    await loop.run_in_executor(None, _insert)
     return len(data)
 
 def generate_warrior(prof_ids, skill_ids):
@@ -181,28 +178,37 @@ def generate_and_insert_warriors(prof_ids, skill_ids, total_warriors, batch_size
     for t in threads:
         t.join()
 
-def parse_profs(catalog,generate_warriors=False):
+async def parse_profs(catalog=None, generate_warriors_flag=False):
     if not catalog:
         catalog = "https://atlas100.ru/catalog/?otrasl=all&prof=all"
-    init_db()
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, init_db)
     print(catalog)
-    data_len = populate_data(catalog)
+    data_len = await populate_data(catalog)
     print(data_len)
-    
     if not data_len:
         print("ERROR: No professions or skills found")
+        return None
+    return f'Найдено {data_len} профессий и навыков'
+
+async def generate_warriors(count):
+    loop = asyncio.get_running_loop()
+    def _get_ids():
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM profession")
+        prof_ids = [row[0] for row in cur.fetchall()]
+        cur.execute("SELECT id FROM skill")
+        skill_ids = [row[0] for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return prof_ids, skill_ids
+
+    prof_ids, skill_ids = await loop.run_in_executor(None, _get_ids)
+    if not prof_ids:
+        print("ERROR: No professions found.")
         return
 
-    return f'Найдено len(data) профессий и навыков'
-
-def generate_warriors(count):
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM profession")
-    prof_ids = [row[0] for row in cur.fetchall()]
-    cur.execute("SELECT id FROM skill")
-    skill_ids = [row[0] for row in cur.fetchall()]
-    cur.close()
-    conn.close()
     start = time.time()
-    generate_and_insert_warriors(prof_ids, skill_ids, count, batch_size=50)
+    await loop.run_in_executor(None, generate_and_insert_warriors, prof_ids, skill_ids, count, 50)
+    print(f"Generated in {time.time() - start:.2f} sec")
