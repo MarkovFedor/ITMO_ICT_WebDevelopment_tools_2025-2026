@@ -77,7 +77,7 @@ temp_bd = {
 
 
 @protected.get("/warrior/{warrior_id}", response_model=WarriorSkillsRead)
-def warriors_get(warrior_id: int, session=Depends(get_session)):
+def warriors_get(warrior_id: int, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     warrior = session.get(Warrior, warrior_id)
     if not warrior:
         raise HTTPException(status_code=404, detail="Warrior not found")
@@ -85,7 +85,7 @@ def warriors_get(warrior_id: int, session=Depends(get_session)):
 
 
 @protected.post("/warrior", response_model=Warrior, status_code=status.HTTP_201_CREATED)
-def warriors_create(warrior: WarriorCreate, session=Depends(get_session)):
+def warriors_create(warrior: WarriorCreate, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     if warrior.profession_id is not None:
         profession = session.get(Profession, warrior.profession_id)
         if not profession:
@@ -113,7 +113,7 @@ def warriors_create(warrior: WarriorCreate, session=Depends(get_session)):
 
 
 @protected.delete("/warrior/{warrior_id}", status_code=status.HTTP_200_OK)
-def warrior_delete(warrior_id: int, session=Depends(get_session)):
+def warrior_delete(warrior_id: int, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     warrior = session.get(Warrior, warrior_id)
     if not warrior:
         raise HTTPException(status_code=404, detail="Warrior not found")
@@ -124,7 +124,7 @@ def warrior_delete(warrior_id: int, session=Depends(get_session)):
 
 @protected.patch("/warrior/{warrior_id}", response_model=Warrior)
 def warrior_update(
-    warrior_id: int, warrior: WarriorCreate, session=Depends(get_session)
+    warrior_id: int, warrior: WarriorCreate, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)
 ):
     db_warrior = session.get(Warrior, warrior_id)
     if not db_warrior:
@@ -154,21 +154,21 @@ def warrior_update(
     return db_warrior
 
 
-@app.get("/professions_list", response_model=List[Profession])
-def professions_list(session=Depends(get_session)):
+@protected.get("/professions_list", response_model=List[Profession])
+def professions_list(credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     return session.exec(select(Profession)).all()
 
 
-@app.get("/profession/{profession_id}", response_model=Profession)
-def profession_get(profession_id: int, session=Depends(get_session)):
+@protected.get("/profession/{profession_id}", response_model=Profession)
+def profession_get(profession_id: int, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     profession = session.get(Profession, profession_id)
     if not profession:
         raise HTTPException(status_code=404, detail="Profession not found")
     return profession
 
 
-@app.post("/profession", response_model=Profession, status_code=status.HTTP_201_CREATED)
-def profession_create(prof: ProfessionDefault, session=Depends(get_session)):
+@protected.post("/profession", response_model=Profession, status_code=status.HTTP_201_CREATED)
+def profession_create(prof: ProfessionDefault, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     prof_db = Profession.model_validate(prof)
     session.add(prof_db)
     session.commit()
@@ -176,9 +176,9 @@ def profession_create(prof: ProfessionDefault, session=Depends(get_session)):
     return prof_db
 
 
-@app.put("/profession/{profession_id}", response_model=Profession)
+@protected.put("/profession/{profession_id}", response_model=Profession)
 def profession_update(
-    profession_id: int, prof_data: ProfessionDefault, session=Depends(get_session)
+    profession_id: int, prof_data: ProfessionDefault, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)
 ):
     profession = session.get(Profession, profession_id)
     if not profession:
@@ -192,8 +192,8 @@ def profession_update(
     return profession
 
 
-@app.delete("/profession/{profession_id}", status_code=status.HTTP_200_OK)
-def profession_delete(profession_id: int, session=Depends(get_session)):
+@protected.delete("/profession/{profession_id}", status_code=status.HTTP_200_OK)
+def profession_delete(profession_id: int, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     profession = session.get(Profession, profession_id)
     if not profession:
         raise HTTPException(status_code=404, detail="Profession not found")
@@ -212,21 +212,21 @@ def profession_delete(profession_id: int, session=Depends(get_session)):
     return {"ok": True}
 
 
-@app.get("/skills_list", response_model=List[Skill])
-def skills_list(session=Depends(get_session)):
+@protected.get("/skills_list", response_model=List[Skill])
+def skills_list(credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     return session.exec(select(Skill)).all()
 
 
-@app.get("/skill/{skill_id}", response_model=Skill)
-def get_skill(skill_id: int, session=Depends(get_session)):
+@protected.get("/skill/{skill_id}", response_model=Skill)
+def get_skill(skill_id: int, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     skill = session.get(Skill, skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
     return skill
 
 
-@app.post("/skill", response_model=Skill, status_code=status.HTTP_201_CREATED)
-def skill_create(skill: SkillDefault, session=Depends(get_session)):
+@protected.post("/skill", response_model=Skill, status_code=status.HTTP_201_CREATED)
+def skill_create(skill: SkillDefault, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     skill_db = Skill.model_validate(skill)
     session.add(skill_db)
     session.commit()
@@ -234,8 +234,8 @@ def skill_create(skill: SkillDefault, session=Depends(get_session)):
     return skill_db
 
 
-@app.delete("/skill/{skill_id}", status_code=status.HTTP_200_OK)
-def skill_delete(skill_id: int, session=Depends(get_session)):
+@protected.delete("/skill/{skill_id}", status_code=status.HTTP_200_OK)
+def skill_delete(skill_id: int, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     skill = session.get(Skill, skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
@@ -244,8 +244,8 @@ def skill_delete(skill_id: int, session=Depends(get_session)):
     return {"ok": True}
 
 
-@app.patch("/skill/{skill_id}", response_model=Skill)
-def skill_update(skill_id: int, skill_data: SkillDefault, session=Depends(get_session)):
+@protected.patch("/skill/{skill_id}", response_model=Skill)
+def skill_update(skill_id: int, skill_data: SkillDefault, credentials: str = Depends(security), current_user: User = Depends(get_current_user),session=Depends(get_session)):
     db_skill = session.get(Skill, skill_id)
     if not db_skill:
         raise HTTPException(status_code=404, detail="Skill not found")
