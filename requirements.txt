@@ -3,3 +3,5 @@ dotenv
 sqlmodel
 uvicorn
 psycopg2-binary
+aiohttp
+beautifulsoup4
