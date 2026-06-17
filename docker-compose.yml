@@ -4,9 +4,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
-      POSTGRES_DB: ${DB_NAME:-postupi}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: web
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
