@@ -10,6 +10,7 @@ import os
 import psycopg2
 from psycopg2.extras import execute_values
 import re
+import ssl
 from urllib.parse import urljoin
 
 load_dotenv()
@@ -53,7 +54,12 @@ async def fetch_page(session: aiohttp.ClientSession, url: str):
         return None
 
 async def parse_catalog(catalog_url):
-    async with aiohttp.ClientSession() as session:
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+
+    async with aiohttp.ClientSession(connector=connector) as session:
         html = await fetch_page(session, catalog_url)
     if not html:
         return []
@@ -87,7 +93,7 @@ async def parse_catalog(catalog_url):
 
         professions.append((title, description, skills))
     return professions
-
+    
 async def populate_data(catalog):
     print("=== Parsing catalog page ===")
     data = await parse_catalog(catalog)
